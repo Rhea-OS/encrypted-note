@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../css/main.css"],
+  "sourcesContent": [".block-language-form-control {\n    padding: var(--size-4-2);\n}"],
+  "mappings": ";AAAA,CAAC;AACG,WAAS,IAAI;AACjB;",
+  "names": []
+}

@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-os/forms",
+  "name": "Forms",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Produce forms to fill out data",
+  "author": "Jake Schneider",
+  "authorUrl": "https://jschneiderprojects.com.au",
+  "isDesktopOnly": false
+}

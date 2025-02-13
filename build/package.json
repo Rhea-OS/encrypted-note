@@ -1,0 +1,16 @@
+{
+  "name": "forms",
+  "build": "./build.js",
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "forms": "link:./build/mod"
+  },
+  "devDependencies": {
+    "builder": "link:../../builder",
+    "obsidian": "latest",
+    "typescript": "latest"
+  },
+  "main": "run.js",
+  "imports": {}
+}
