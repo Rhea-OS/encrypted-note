@@ -30,11 +30,12 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/main.ts
 var main_exports = {};
 __export(main_exports, {
-  default: () => Form,
+  ENCRYPTED_NOTE_VIEW: () => ENCRYPTED_NOTE_VIEW,
+  default: () => EncryptedNote,
   default_settings: () => default_settings
 });
 module.exports = __toCommonJS(main_exports);
-var obs2 = __toESM(require("obsidian"), 1);
+var obs3 = __toESM(require("obsidian"), 1);
 
 // src/settings.ts
 var obs = __toESM(require("obsidian"), 1);
@@ -43,72 +44,65 @@ var SettingsTab = class extends obs.PluginSettingTab {
   }
 };
 
+// src/passwordPrompt.ts
+var obs2 = __toESM(require("obsidian"), 1);
+var PasswordPrompt = class _PasswordPrompt extends obs2.Modal {
+  constructor(app, file, onSubmit) {
+    super(app);
+    this.setTitle(`Decrypt ${file.name}`);
+    const form = this.contentEl.createEl("form", {});
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      onSubmit(e.target.password.value);
+      this.close();
+    });
+    new obs2.Setting(form).setName("Password").setDesc("Please enter the password to unlock this note.").addText((text) => Object.assign(text.inputEl, {
+      type: "password",
+      name: "password",
+      placeholder: "abc123"
+    }));
+    form.createEl("button", {
+      type: "submit",
+      text: "Okay"
+    });
+  }
+  static async prompt(app, file) {
+    return await new Promise((ok) => new _PasswordPrompt(app, file, (pw) => ok(pw)).open());
+  }
+};
+
 // src/main.ts
-var default_settings = {};
-var Form = class extends obs2.Plugin {
+var ENCRYPTED_NOTE_VIEW = "encrypted-note-view";
+var default_settings = {
+  iv: window.crypto.getRandomValues(new Uint8Array(16))
+};
+var EncryptedNote = class extends obs3.Plugin {
   settingsTab = null;
   settings = default_settings;
-  widgets = /* @__PURE__ */ new Map();
-  updateHooks = [];
   async onload() {
-    const self = this;
-    this.registerMarkdownCodeBlockProcessor("form-control", function(source, el, ctx) {
-      try {
-        const getId = (widget2) => `${self.app.workspace.getActiveFile()?.path ?? "/"}/${widget2.id ?? self.widgets.size}`;
-        let form;
-        const widget = new Function("form", source)(form = {
-          createButton(widget2) {
-            const id = getId(widget2);
-            new obs2.Setting(el).addButton((button) => {
-              self.widgets.set(id, {
-                widget: widget2,
-                component: button
-              });
-              button.setButtonText(widget2.text);
-              if (widget2.icon) button.setIcon(widget2.icon);
-              button.onClick((e) => widget2.onClick?.(e));
-            }).setName(widget2.label ?? "").setDesc(widget2.description ?? "");
-          },
-          createTextWidget(widget2) {
-            const id = getId(widget2);
-            const cb = function(input) {
-              self.widgets.set(id, {
-                widget: widget2,
-                component: input
-              });
-              if (widget2.getTextContent) input.setValue(String(widget2.getTextContent()));
-              input.onChange((value) => {
-                widget2.setTextContent?.(value);
-                self.updateHooks.forEach((i) => i());
-              });
-              if (widget2.getTextContent && !widget2.setTextContent) {
-                input.setDisabled(true);
-                self.updateHooks.push(() => void input.setValue(String(widget2.getTextContent())));
-              }
-            };
-            (widget2.multiline ? new obs2.Setting(el).addTextArea(cb) : new obs2.Setting(el).addText(cb)).setName(widget2.label ?? "").setDesc(widget2.description ?? "");
-          },
-          query(id) {
-            if (self.widgets.has(id))
-              return self.widgets.get(id).component;
-            const new_id = `${self.app.workspace.getActiveFile()?.path ?? "/"}/${id}`;
-            if (self.widgets.has(new_id))
-              return self.widgets.get(new_id).component;
-            return null;
-          }
-        });
-      } catch (err) {
-        el.createEl("pre", {
-          cls: ["error"],
-          text: String(err instanceof Error ? err.stack : err)
-        });
-      }
-    });
+    this.registerExtensions(["enc"], "markdown");
+    this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => menu.addItem((item) => item.setTitle("Encrypt Note").setIcon("lock").onClick(async (_) => {
+      const pw = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(await PasswordPrompt.prompt(this.app, file)));
+      const key = await window.crypto.subtle.importKey("raw", pw, "AES-GCM", false, ["encrypt", "decrypt"]);
+      const path = this.app.vault.getFileByPath(file.path);
+      if (!path)
+        return new obs3.Notice("File could not be found.");
+      const cipher = await window.crypto.subtle.encrypt({
+        name: "AES-GCM",
+        iv: this.settings.iv
+      }, key, await this.app.vault.readBinary(path));
+      await this.app.vault.rename(file, `${file.path}.enc`);
+    }))));
+    this.registerEvent(this.app.workspace.on("file-open", async (file) => {
+      if (file?.extension != "enc") return;
+      console.log("Encrypted file");
+    }));
     this.addSettingTab(new SettingsTab(this.app, this));
   }
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  ENCRYPTED_NOTE_VIEW,
   default_settings
 });
 //# sourceMappingURL=main.js.map
