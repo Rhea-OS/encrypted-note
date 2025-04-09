@@ -1,9 +1,9 @@
 {
-	"id": "obsidian-os/forms",
-	"name": "Forms",
+	"id": "obsidian-os/encrypted-note",
+	"name": "Encrypted Note",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Produce forms to fill out data",
+	"description": "Keep sensitive data safe by encrypting notes",
 	"author": "Jake Schneider",
 	"authorUrl": "https://jschneiderprojects.com.au",
 	"isDesktopOnly": false

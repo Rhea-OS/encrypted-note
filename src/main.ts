@@ -1,123 +1,51 @@
 import * as obs from 'obsidian';
 import SettingsTab from "./settings.js";
-import {BaseComponent} from "obsidian";
+import PasswordPrompt from "./passwordPrompt.js";
 
 export interface Settings {
-
+    iv: Uint8Array<ArrayBuffer>
 }
 
-export const default_settings: Settings = {};
+export const ENCRYPTED_NOTE_VIEW = 'encrypted-note-view';
 
-export type Widget = (ButtonWidget | TextInputWidget | ListBoxWidget) & {
-    id?: WidgetId,
-    label?: string,
-    description?: string,
+export const default_settings: Settings = {
+    iv: window.crypto.getRandomValues(new Uint8Array(16))
 };
 
-export type ButtonWidget = {
-    text: string,
-    icon?: string,
-    onClick: (e: MouseEvent) => void,
-};
-
-export type TextInputWidget = {
-    getTextContent?: () => string,
-    setTextContent?: (text: string) => void,
-
-    placeholder?: string,
-
-    multiline?: boolean
-}
-
-export type ListBoxWidget = {
-    listItems: () => {
-        label: string,
-        key?: string
-    }[],
-
-    multiple?: boolean,
-    extend?: boolean
-}
-
-export type WidgetId = string;
-
-export default class Form extends obs.Plugin {
-
+export default class EncryptedNote extends obs.Plugin {
     settingsTab: SettingsTab | null = null;
     settings: Settings = default_settings;
 
-    widgets: Map<WidgetId, { widget: Widget, component: obs.BaseComponent }> = new Map();
-    updateHooks: Array<() => void> = [];
-
     async onload() {
-        const self = this;
-        this.registerMarkdownCodeBlockProcessor("form-control", function (source, el, ctx) {
-            try {
-                const getId = (widget: Widget): WidgetId => `${self.app.workspace.getActiveFile()?.path ?? '/'}/${widget.id ?? self.widgets.size}`;
+        this.registerExtensions(['enc'], 'markdown');
 
-                let form;
-                const widget = new Function("form", source)(form = {
-                    createButton(widget: Widget & ButtonWidget) {
-                        const id = getId(widget);
-                        new obs.Setting(el)
-                            .addButton(button => {
-                                self.widgets.set(id, {
-                                    widget,
-                                    component: button
-                                });
+        this.registerEvent(this.app.workspace.on("file-menu", (menu, file) => menu
+            .addItem(item => item
+                .setTitle("Encrypt Note")
+                .setIcon("lock")
+                .onClick(async _ => {
+                    const pw = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(await PasswordPrompt.prompt(this.app, file)));
+                    const key = await window.crypto.subtle.importKey('raw', pw, 'AES-GCM', false, ['encrypt', 'decrypt']);
 
-                                button.setButtonText(widget.text);
-                                if (widget.icon) button.setIcon(widget.icon);
+                    const path = this.app.vault.getFileByPath(file.path);
 
-                                button.onClick(e => widget.onClick?.(e));
-                            })
-                            .setName(widget.label ?? '')
-                            .setDesc(widget.description ?? '');
-                    },
-                    createTextWidget(widget: Widget & TextInputWidget) {
-                        const id = getId(widget);
-                        const cb = function (input: obs.TextComponent | obs.TextAreaComponent) {
-                            self.widgets.set(id, {
-                                widget,
-                                component: input
-                            });
+                    if (!path)
+                        return new obs.Notice("File could not be found.");
 
-                            if (widget.getTextContent) input.setValue(String(widget.getTextContent()));
-                            input.onChange(value => {
-                                widget.setTextContent?.(value);
-                                self.updateHooks.forEach(i => i());
-                            });
+                    const cipher = await window.crypto.subtle.encrypt({
+                        name: 'AES-GCM',
+                        iv: this.settings.iv,
+                    }, key, await this.app.vault.readBinary(path));
 
-                            if (widget.getTextContent && !widget.setTextContent) {
-                                input.setDisabled(true);
-                                self.updateHooks.push(() => void input.setValue(String(widget.getTextContent!())))
-                            }
-                        };
+                    await this.app.vault.rename(file, `${file.path}.enc`);
+                }))));
 
-                        (widget.multiline ? new obs.Setting(el)
-                            .addTextArea(cb) : new obs.Setting(el).addText(cb))
-                            .setName(widget.label ?? '')
-                            .setDesc(widget.description ?? '');
-                    },
-                    query(id: WidgetId): BaseComponent | null {
-                        if (self.widgets.has(id))
-                            return self.widgets.get(id)!.component;
+        this.registerEvent(this.app.workspace.on("file-open", async (file) => {
+                if (file?.extension != 'enc') return;
 
-                        const new_id = `${self.app.workspace.getActiveFile()?.path ?? '/'}/${id}`;
+                const leaf = this.app.workspace.
+            }));
 
-                        if (self.widgets.has(new_id))
-                            return self.widgets.get(new_id)!.component;
-
-                        return null;
-                    }
-                });
-            } catch (err) {
-                el.createEl("pre", {
-                    cls: ["error"],
-                    text: String(err instanceof Error ? err.stack : err)
-                })
-            }
-        });
         this.addSettingTab(new SettingsTab(this.app, this));
     }
 }

@@ -1,11 +1,8 @@
 {
-    "name": "forms",
+    "name": "encrypted-note",
     "build": "./build.js",
     "version": "0.1.0",
     "type": "module",
-    "dependencies": {
-        "forms": "link:./build/mod"
-    },
     "scripts": {
         "build": "build phony:all phony:install",
         "preinstall": "build build:main.wasm"
